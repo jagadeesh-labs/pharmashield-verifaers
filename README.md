@@ -1,5 +1,12 @@
 # PharmaShield VeriFAERS
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Docs: CC BY 4.0](https://img.shields.io/badge/Docs-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
+[![Status](https://img.shields.io/badge/status-pre--MVP-orange.svg)](docs/PROJECT_BRIEF.md)
+
+> An open project by **Jagadeesh Labs** — code is licensed under [Apache 2.0](LICENSE); documentation is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 PharmaShield VeriFAERS is a trust-oriented, local AI infrastructure stack designed for bounded clinical reasoning. The system ingests post-market adverse event data from the openFDA API, normalizes it into a highly optimized local SQLite database, and exposes an asymmetric multi-tier reasoning pipeline through a Streamlit dashboard.
 
 Unlike traditional AI wrappers, this framework treats the large language model (LLM) strictly as an interpretation engine rather than a facts provider. The LLM is mathematically bounded by a deterministic relational truth layer and audited by an isolated verification matrix to catch and flag semantic drift instantly.
