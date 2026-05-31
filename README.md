@@ -5,128 +5,59 @@
 [![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 [![Status](https://img.shields.io/badge/status-pre--MVP-orange.svg)](docs/PROJECT_BRIEF.md)
 
-> An open project by **Jagadeesh Labs** — code is licensed under [Apache 2.0](LICENSE); documentation is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+> An open project by **Jagadeesh Labs**.
 
-PharmaShield VeriFAERS is a trust-oriented, local AI infrastructure stack designed for bounded clinical reasoning. The system ingests post-market adverse event data from the openFDA API, normalizes it into a highly optimized local SQLite database, and exposes an asymmetric multi-tier reasoning pipeline through a Streamlit dashboard.
+PharmaShield VeriFAERS is built around one strict idea: when an AI summarizes drug-safety data, it should never be trusted to produce the numbers itself. The system ingests post-market adverse-event reports from the openFDA API, computes the statistics deterministically, and lets a language model only *explain* those results in plain language — with a separate check that flags any summary whose numbers don't match the source data.
 
-Unlike traditional AI wrappers, this framework treats the large language model (LLM) strictly as an interpretation engine rather than a facts provider. The LLM is mathematically bounded by a deterministic relational truth layer and audited by an isolated verification matrix to catch and flag semantic drift instantly.
+## The core idea — bounded trust
 
-# Production Tracker
- Stage 1: Environment & Data Foundation
-[x] 1.1 Base Environment: VS Code initialized, paths locked, requirements.txt locked.
+It separates two jobs that most AI tools wrongly merge:
 
-[x] 1.2 The Local Brain: Ollama engine running, gemma4:e2b weights pulled successfully.
+- **The math is the truth.** Counts and summary statistics are computed directly from the database. These values are authoritative.
+- **The language model only interprets.** It receives the computed numbers and writes a readable summary. It is never the source of a fact.
+- **A validation step audits the summary.** If the narrative adds or drops a number, the mismatch is caught and the output is flagged.
 
-[x] 1.3 Data ETL Pipeline (ingest_pipeline.py): Script written to ping API, normalize age/gender, and write to SQLite without bloat.
+The goal is auditability: every figure in a summary should trace back to a database value.
 
-[ ] 1.4 Pipeline Execution: Run python ingest_pipeline.py and verify pharma_shield.db is created.
+## Status
 
-Stage 2: The Deterministic Logic (Math & SQL)
-[ ] 2.1 Query Engine (query_engine.py): Write the pure SQL module to extract total counts, severity sums, and mean ages for a specific drug/reaction pair.
+**Pre-MVP — under active development.** This repository currently holds an early prototype, and the architecture is being migrated:
 
-[ ] 2.2 Query Testing: Verify the engine returns strict integer/float payloads, not raw text.
+| Layer | Prototype (current code) | Target (see docs) |
+| --- | --- | --- |
+| Database | SQLite | PostgreSQL via Supabase |
+| Interface | Streamlit | FastAPI + React |
+| LLM runtime | local Ollama | Hugging Face Inference |
 
-Stage 3: The AI & Trust Layer
-[ ] 3.1 Reasoning Engine (reasoning_engine.py): Write the prompt boundary that sends the math to Gemma and retrieves the clinical summary.
+The authoritative design lives in [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Where this README and the docs differ, treat the docs as current.
 
-[ ] 3.2 Verification Engine (verification_engine.py): Write the deterministic logic that checks if the numbers in Gemma's summary match the actual database numbers.
-
-Stage 4: The Interface & Launch
-[ ] 4.1 Streamlit Dashboard (app.py): Build the UI layout (dropdowns, metric cards, text boxes).
-
-[ ] 4.2 Module Wiring: Import the three engines (Query, Reasoning, Verification) into the UI.
-
-[ ] 4.3 Local Launch: Run streamlit run app.py.
-
-[ ] 4.4 Final Audit: Push complete, working repository to GitHub.
-
-
-
-
-
-
-# System Architecture
-
-The codebase strictly adheres to modular separation of concerns. Every module owns a single, explicit responsibility to ensure maintainability, testing isolation, and type safety.
+## Repository layout
 
 ```text
-├── database/
-│   └── pharma_shield.db        # High-performance WAL relational truth layer
-├── app.py                      # Pure presentation & pipeline routing layer
-├── shared_types.py             # Global semantic type definitions
-├── ingest_pipeline.py          # Deterministic openFDA ETL & DB bootstrap engine
-├── query_engine.py             # Optimized read-only single-pass data extractor
-├── reasoning_engine.py         # Bounded local inference orchestrator (e2b / e4b)
-└── validation_engine.py        # Set-mathematics validation & drift interception engine
+app.py                 # prototype UI (Streamlit)
+ingest_pipeline.py     # openFDA ingestion + database bootstrap
+query_engine.py        # deterministic statistical queries
+reasoning_engine.py    # bounded LLM summary (interpretation only)
+validation_engine.py   # numeric drift check on the summary
+shared_types.py        # shared type definitions
+test_stack.py          # integration test harness
+database/              # local prototype database
+docs/                  # project brief + architecture (source of truth)
+```
 
 
-# System Architecture
+## Roadmap
 
-shared_types.py: Houses strict global type contracts (SafetyMetricsPayload) to unify semantic signatures across the application and eliminate circular dependencies.
+1. Run the prototype end-to-end on a single drug and metric.
+2. Migrate the data layer to Supabase / PostgreSQL.
+3. Add the statistical and ML layers with reproducible benchmarks.
+4. Replace the interface with FastAPI + React.
+5. Add observability and publish reproducible results.
 
-ingest_pipeline.py: Executes an idempotent ETL loop. It configures the database schema, enforces performance-tuned SQLite constraints (PRAGMA journal_mode=WAL), compiles target analytical indexes, and batch-loads api records using low-overhead database methods.
+## Disclaimer
 
-query_engine.py: An isolated, read-only analytics driver. It combines numerical extractions into a single-pass query sequence to minimize disk I/O round-trips.
+PharmaShield VeriFAERS is decision-support tooling. It is **not** a diagnostic device, **not** a substitute for professional clinical or regulatory judgment, and **not** validated for clinical use. See [`NOTICE`](NOTICE).
 
-reasoning_engine.py: Constructs mathematically constrained prompts and handles local inference orchestration via Ollama. It safely extracts logic chains using isolated structural token parsers.
+## License
 
-validation_engine.py: A deterministic runtime auditor. It utilizes set intersection logic to verify that generated narratives explicitly and accurately reflect underlying metrics, outputting an immutable validation status contract.
-
-app.py: A stateless presentation layer. It manages real estate allocation and drives the user execution journey lineally from raw data metrics up to the final trust verdict.
-
-
-🔄 The Three-Stage Trust Pipeline
-
-[ SQLite Relational C-Substrate ]
-                 │
-                 ▼
-  ┌─────────────────────────────┐
-  │  Stage 1: Relational Math   │ ──► Extracts absolute statistical evidence
-  └──────────────┬──────────────┘
-                 │ (SafetyMetricsPayload)
-                 ▼
-  ┌─────────────────────────────┐
-  │  Stage 2: Bounded Inference │ ──► Local multi-tier model reasoning (e2b / e4b)
-  └──────────────┬──────────────┘
-                 │ (InferenceResult)
-                 ▼
-  ┌─────────────────────────────┐
-  │  Stage 3: Numeric Audit     │ ──► Intersects narrative tokens against math truth
-  └─────────────────────────────┘
-
-
-Stage 1 (Relational Truth): Raw data is fetched, aggregated, and displayed directly from the SQLite database.
-
-Stage 2 (Bounded Context): The model processes the exact numbers from Stage 1. It is explicitly prohibited from leveraging external ungrounded clinical memory or producing speculative claims.
-
-Stage 3 (Validation Output): The narrative output is parsed and evaluated. If the model fails to include the core statistical parameters, the pipeline intercepts the execution thread, exposes the semantic drift, and triggers an override.
-
-🚀 Installation & Deployment
-Prerequisites
-Python 3.9+
-
-Ollama App running locally in the background.
-
-1. Initialize Environment and Dependencies
-Clone the repository to your workspace, open your terminal, and install the required core packages:
-
-
-pip install streamlit ollama
-2. Run the Data Ingestion Pipeline
-Bootstrap the optimized SQLite framework and pull the latest production records from the openFDA stream:
-
-
-python ingest_pipeline.py
-3. Fetch Local Reasoning Models
-Ensure you have the required inference tiers downloaded locally inside your Ollama environment:
-
-
-ollama pull gemma4:e2b
-ollama pull gemma4:e4b
-(Note: If you are running different model architectures, update the mapping parameters inside app.py to match your active local CLI strings.)
-
-4. Boot the Interactive Console Interface
-Launch the dashboard locally to audit clinical trends through the multi-tier trust framework:
-
-
-streamlit run app.py
+Code is licensed under the [Apache License 2.0](LICENSE); documentation under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Copyright (c) 2026 Jagadeesh Labs.
