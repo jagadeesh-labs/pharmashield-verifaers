@@ -5,7 +5,7 @@
 [![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 [![Status](https://img.shields.io/badge/status-pre--MVP-orange.svg)](docs/PROJECT_BRIEF.md)
 
-> An open project by **Jagadeesh Labs** — code is licensed under [Apache 2.0](LICENSE); documentation is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+> An open project by **Jagadeesh Labs**.
 
 PharmaShield VeriFAERS is built around one strict idea: when an AI summarizes drug-safety data, it should never be trusted to produce the numbers itself. The system ingests post-market adverse-event reports from the openFDA API, computes the statistics deterministically, and lets a language model only *explain* those results in plain language — with a separate check that flags any summary whose numbers don't match the source data.
 
@@ -53,8 +53,6 @@ docs/                  # project brief + architecture (source of truth)
 3. Add the statistical and ML layers with reproducible benchmarks.
 4. Replace the interface with FastAPI + React.
 5. Add observability and publish reproducible results.
-
-Detailed scope and honest limitations are documented in the [project brief](docs/PROJECT_BRIEF.md).
 
 ## Disclaimer
 
