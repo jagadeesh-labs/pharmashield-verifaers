@@ -30,13 +30,42 @@
 [ Interface ]  FastAPI + React            [ Observability ]  OpenTelemetry → Grafana
 ```
 
-
 ## Data layer
 
 - **Target:** PostgreSQL via Supabase (managed auth, row-level security, encryption at rest). **Current prototype:** SQLite.
 - Access goes through a repository abstraction, so the backend is swappable (Supabase → self-hosted Postgres → SQLite) without touching business logic.
 - Core tables: `adverse_events` (append-only fact), dimension tables (`drugs`, `manufacturers`, `reactions`, `regulators`), and a materialized `signal_statistics` table refreshed after ingest.
 - Integrity: foreign keys and check constraints enforced; writes are idempotent (upsert on `(regulator, source_id)`); each row carries a source hash for provenance.
+
+### Schema (core)
+
+```sql
+-- Dimensions
+regulators(id, code, name, country, source_type, last_synced_at)
+drugs(id, generic_name, atc_code, is_generic)
+manufacturers(id, name, country)
+reactions(id, meddra_pt, soc)
+
+-- Fact (append-only)
+adverse_events(
+  id, regulator_id, source_id, drug_id, manufacturer_id, reaction_id,
+  severity, age, sex, country_reported, received_date,
+  source_payload_hash, ingested_at,
+  UNIQUE (regulator_id, source_id)          -- idempotent upsert key
+)
+
+-- Materialized analytics (refreshed after each ingest)
+signal_statistics(
+  drug_id, reaction_id, regulator_id,
+  n_cases, prr, ror, bcpnn_ic, ebgm, computed_at
+)
+
+-- Append-only audit of every generated summary
+validation_verdicts(
+  id, ts, query_hash, inputs_json,
+  model, summary, status, drift_json
+)
+```
 
 ## Ingestion
 
@@ -66,12 +95,53 @@
 - On mismatch, the output is withheld or corrected and the event is logged. Each verdict and its inputs are recorded for audit.
 - This layer is also packaged as the project's contribution: a reproducible numeric-faithfulness benchmark with baselines (LLM-as-judge, NLI, lexical).
 
+## API and interface
 
-## Interface, API, and observability
-
-- **API:** FastAPI — lookups for drugs, manufacturers, and reactions, plus a `/reasoning` endpoint returning `{statistics, summary, verdict, audit_id}`.
 - **Frontend:** React + Tailwind (target); the current prototype uses Streamlit.
-- **Observability (from the start, not bolted on):** OpenTelemetry metrics, logs, and traces → Grafana (OSS-first; managed Grafana optional). One curated dashboard covers request health, data freshness per source, and the validation pass / drift-interception rate.
+- **API:** FastAPI.
+
+```text
+GET  /drugs?q=&country=         list / search drugs
+GET  /drugs/{id}                drug detail + signal statistics
+GET  /manufacturers/{id}        portfolio + adverse-event profile
+GET  /reactions/{id}            reaction detail
+GET  /signals?drug=&reaction=   disproportionality statistics
+POST /reasoning                 run the trust pipeline (below)
+GET  /health   /metrics         liveness + Prometheus scrape
+```
+
+`POST /reasoning` response shape:
+
+```json
+{
+  "statistics": { "n_cases": 0, "prr": 0.0, "ror": 0.0, "ci": [0.0, 0.0] },
+  "summary":    "model-generated narrative, phrasing only the values above",
+  "verdict":    { "status": "pass | flagged | withheld", "drift": [] },
+  "audit_id":   "uuid"
+}
+```
+
+## Data flow (end to end)
+
+```text
+1. Ingest       fetch → normalize (E2B R3) → upsert           (idempotent)
+2. Post-ingest  refresh signal_statistics
+3. Request      POST /reasoning(drug, reaction)
+4. Compute      statistics from the database                  (authoritative)
+5. Phrase       bounded LLM turns the values into a summary
+6. Validate     intersect summary numbers vs statistics  →  pass / flag / withhold
+7. Persist      verdict + inputs (append-only audit)
+8. Respond      { statistics, summary, verdict, audit_id }
+```
+
+Telemetry is emitted at each step.
+
+## Observability (from the start, not bolted on)
+
+- **Stack:** OpenTelemetry metrics, logs, and traces → Grafana (OSS-first; managed Grafana optional).
+- **Metrics:** request rate / error rate / latency (p50, p95, p99); ingestion success and records per run; **data-freshness lag per source**; model inference latency; **validation pass rate** and **drift-interception rate**.
+- **Alerts:** validation pass-rate drop; data-freshness breach; error-rate or latency SLO breach.
+- One curated dashboard covers all of the above.
 
 ## Compute and deployment
 
